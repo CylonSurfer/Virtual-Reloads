@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34902.65
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtualReloads", "VirtualReloads.vcxproj", "{06916206-A271-415F-9334-1F69CDF2F807}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{06916206-A271-415F-9334-1F69CDF2F807}.Debug|x64.ActiveCfg = Debug|x64
+		{06916206-A271-415F-9334-1F69CDF2F807}.Debug|x64.Build.0 = Debug|x64
+		{06916206-A271-415F-9334-1F69CDF2F807}.Debug|x86.ActiveCfg = Debug|Win32
+		{06916206-A271-415F-9334-1F69CDF2F807}.Debug|x86.Build.0 = Debug|Win32
+		{06916206-A271-415F-9334-1F69CDF2F807}.Release|x64.ActiveCfg = Release|x64
+		{06916206-A271-415F-9334-1F69CDF2F807}.Release|x64.Build.0 = Release|x64
+		{06916206-A271-415F-9334-1F69CDF2F807}.Release|x86.ActiveCfg = Release|Win32
+		{06916206-A271-415F-9334-1F69CDF2F807}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {6A48E83A-9A4A-4D81-A3E4-F0C516BFD4D3}
+	EndGlobalSection
+EndGlobal
