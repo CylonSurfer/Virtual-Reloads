@@ -22,6 +22,7 @@
 #include "VRHook.h"
 #include "BSFlattenedBoneTree.h"
 #include <thread>
+#include <cmath>
 
 extern UInt16 ammoCapactity;
 extern OpenVRHookManagerAPI* vrHook;
@@ -71,6 +72,7 @@ namespace Reload {
 	void startReload();
 	void waitFor3D(TESObjectREFR* object);
 	void playDryFire();
+	void dryPositionBolt();
 	void grabAmmmo();
 	void dropAmmo();
 	void insertAmmo();
@@ -83,13 +85,12 @@ namespace Reload {
 	void detectBolt();
 	void moveBolt();
 	void retoreBolt();
+	void completeSlideReload();
 	void retoreBolt2();
 	void rotateBreakAction();
 	void detectBreakAction();
 	void gripBreakAction();
 	void rotateWithBreakAction();
-	void restoreBreakAction();
-	void restoreBreakAction2();
 	void rotateCylinder();
 	void detectCylinder();
 	void rotateWithCylinder();

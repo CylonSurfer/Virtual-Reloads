@@ -7,6 +7,8 @@
 #include "f4se/BSCollision.h"
 
 
+
+
 OpenVRHookManagerAPI* vrHook;
 
 UInt16 ammoCapactity = 0;
@@ -43,6 +45,7 @@ namespace Reload {
 	float rAxisOffsetY;
 	float distanceToGrip;
 	float lastDistanceToGrip;
+	bool skipRacking;
 	std::map<UInt32, MyAmmoPack*> AmmoRegisteredObjects;
 	bool initBoneTreeFlag = true;
 	bool isAmmoIntersected = false;
@@ -62,6 +65,9 @@ namespace Reload {
 	BGSSoundDescriptorForm* cylinderMagIn = nullptr;
 	BGSSoundDescriptorForm* cylinderBoltOpen = nullptr;
 	BGSSoundDescriptorForm* cylinderBoltClose = nullptr;
+	BGSSoundDescriptorForm* laserMagIn = nullptr;
+	BGSSoundDescriptorForm* laserBoltOpen = nullptr;
+	BGSSoundDescriptorForm* laserBoltClose = nullptr;
 	TESAmmo* emptyMag = nullptr;
 	NiNode* hand = nullptr;
 	NiPoint3 handpos;
@@ -147,8 +153,6 @@ namespace Reload {
 				_isNewWeapon = true;
 				isReloading = false;
 				isAmmoIntersected = false;
-				//_isReloadPressed = false;
-				//_isTriggerPressed = false;
 				_isGrabAmmoPressed = false;
 				_isWithinMagInsertZone = false;
 				_isInSlideZone = false;
@@ -180,7 +184,6 @@ namespace Reload {
 		}
 		preventReload = DYNAMIC_CAST(GetFormFromFile(0x000F99, "VirtualReloads.esp"), TESForm, BGSKeyword);
 		preventWPNFire = DYNAMIC_CAST(GetFormFromFile(0x001733, "VirtualReloads.esp"), TESForm, BGSKeyword);
-		//dryFire = DYNAMIC_CAST(GetFormFromFile(0x01EA80, "Fallout4.esm"), TESForm, BGSSoundDescriptorForm);
 		dryFire = DYNAMIC_CAST(GetFormFromFile(0x002E03, "VirtualReloads.esp"), TESForm, BGSSoundDescriptorForm);
 		magOut = DYNAMIC_CAST(GetFormFromFile(0x002E05, "VirtualReloads.esp"), TESForm, BGSSoundDescriptorForm);
 		magIn = DYNAMIC_CAST(GetFormFromFile(0x002E04, "VirtualReloads.esp"), TESForm, BGSSoundDescriptorForm);
@@ -193,6 +196,9 @@ namespace Reload {
 		cylinderMagIn = DYNAMIC_CAST(GetFormFromFile(0x0044D6, "VirtualReloads.esp"), TESForm, BGSSoundDescriptorForm);
 		cylinderBoltOpen = DYNAMIC_CAST(GetFormFromFile(0x0044D7, "VirtualReloads.esp"), TESForm, BGSSoundDescriptorForm);
 		cylinderBoltClose = DYNAMIC_CAST(GetFormFromFile(0x0044D8, "VirtualReloads.esp"), TESForm, BGSSoundDescriptorForm);
+		laserMagIn = DYNAMIC_CAST(GetFormFromFile(0x004C72, "VirtualReloads.esp"), TESForm, BGSSoundDescriptorForm);
+		laserBoltOpen = DYNAMIC_CAST(GetFormFromFile(0x004C73, "VirtualReloads.esp"), TESForm, BGSSoundDescriptorForm);
+		laserBoltClose = DYNAMIC_CAST(GetFormFromFile(0x004C74, "VirtualReloads.esp"), TESForm, BGSSoundDescriptorForm);
 		emptyMag = DYNAMIC_CAST(GetFormFromFile(0x001ECE, "VirtualReloads.esp"), TESForm, TESAmmo);
 		
 		if (initBoneTreeFlag) {
@@ -266,11 +272,11 @@ namespace Reload {
 					_isGrabAmmoPressed = true;
 					grabAmmmo();
 				}
-				else if (grabAmmoButtonPressed && !_isGrabAmmoPressed && requiresRacking() && _isInSlideZone && !_isGrabbingBolt) {
+				else if (grabAmmoButtonPressed && thisWeapon->ReloadType == kReloadType_Bolt && !_isGrabAmmoPressed && requiresRacking() && _isInSlideZone && !_isGrabbingBolt) {
 					_isGrabbingBolt = true;
 					grabBolt();
 				}
-				else if (grabAmmoButtonPressed && thisWeapon->ReloadType == kReloadType_Bolt && _isInBreakActionZone && !_isGrabAmmoPressed && !_isGrabbingBolt && thisWeapon->clipCount > 0 && !isAmmoInHand()) {
+				else if (grabAmmoButtonPressed && thisWeapon->ReloadType == kReloadType_BreakAction && _isInBreakActionZone && !_isGrabAmmoPressed && !_isGrabbingBolt && thisWeapon->clipCount > 0 && !isAmmoInHand()) {
 					_isGrabbingBolt = true;
 					gripBreakAction();
 				}
@@ -317,9 +323,6 @@ namespace Reload {
 					if (thisConfigMode->cReloadType == kConfReloadType_Bolt && thisConfigMode->cClonedBoltNode != nullptr) {
 						if (doinantHandStick.y > 0.50 || doinantHandStick.y < -0.50) {
 						rAxisOffsetY = doinantHandStick.y / 10;
-							//if ((thisConfigMode->cClonedBoltNode->m_localTransform.pos.y + rAxisOffsetY) > 15 || (thisConfigMode->cClonedBoltNode->m_localTransform.pos.y + rAxisOffsetY) < -15) {
-								//return;
-							//}
 							thisConfigMode->cClonedBoltNode->m_localTransform.pos.y = (thisConfigMode->cClonedBoltNode->m_localTransform.pos.y - rAxisOffsetY);
 							thisConfigMode->_cCustomTransform.pos.x = thisConfigMode->cClonedBoltNode->m_localTransform.pos.y;
 							thisConfigMode->_cCustomTransform.pos.y = 1.0;
@@ -347,7 +350,6 @@ namespace Reload {
 							thisConfigMode->cLatchNode->m_localTransform.rot = rot.multiply43Left(thisConfigMode->cLatchNode->m_localTransform.rot);
 							rot.multiply43Left(thisConfigMode->cLatchNode->m_localTransform.rot);
 							thisConfigMode->_cCustomTransform.rot = thisConfigMode->cLatchNode->m_localTransform.rot;
-							//thisConfigMode->_cCustomTransform.pos.x = thisConfigMode->cOriginalBoltPosition;
 							thisConfigMode->_cCustomTransform.pos.y = 5.0;
 							thisConfigMode->_cCustomTransform.pos.z = 5.0;
 						}
@@ -362,10 +364,20 @@ namespace Reload {
 			if (thisWeapon->ReloadType != kReloadType_Unknown) {
 				if (thisWeapon->ReloadType == kReloadType_Bolt) {
 					if (thisWeapon->weaponNode && thisWeapon->clonedBoltNode && thisWeapon->boltNode && thisWeapon->magazineNode) {
+						int currentAmmoCount = thisWeapon->magCapacity * Offsets::Actor_GetAmmoClipPercentage(*g_player, thisWeapon->equipIndex);
+						if (currentAmmoCount > 0) {
+							skipRacking = true;
+						}
+						else {
+							skipRacking = false;
+						}
 						Offsets::Actor_SetCurrentAmmoCount(*g_player, thisWeapon->equipIndex, 0);
-						thisWeapon->weaponNode->AttachChild(thisWeapon->clonedBoltNode, true);
-						thisWeapon->boltNode->flags |= 0x1; // hide the original bolt node until weapon reload it completed
-						thisWeapon->boltNode->m_localTransform.scale = 0.0;
+						NiNode* testNode = getChildNode("ClonedBolt", thisWeapon->weaponNode);
+						if (!testNode) {
+							thisWeapon->weaponNode->AttachChild(thisWeapon->clonedBoltNode, true);
+							thisWeapon->boltNode->flags |= 0x1; // hide the original bolt node until weapon reload it completed
+							thisWeapon->boltNode->m_localTransform.scale = 0.0;
+						}
 						if (thisWeapon->ammoType == kAmmoType_Magazine) { // hide the weapons magazine - to do: simulate a magazine dropping to the floor. 
 							thisWeapon->magazineNode->flags |= 0x1;
 							thisWeapon->magazineNode->m_localTransform.scale = 0;
@@ -455,7 +467,6 @@ namespace Reload {
 					}
 					if (thisWeapon->weaponNode && thisWeapon->clonedCylinderNode) {
 						thisWeapon->weaponNode->AttachChild(thisWeapon->clonedCylinderNode, true);
-						//bkpCylinderNode = CloneThisNode(thisWeapon->clonedCylinderNode);
 						for (int i = 0; i < thisWeapon->magCapacity; i++) {
 							if (thisWeapon->clonedCylinderBulletNode[i]) {
 								thisWeapon->clonedCylinderNode->AttachChild(thisWeapon->clonedCylinderBulletNode[i], true);
@@ -552,13 +563,10 @@ namespace Reload {
 					NiNode* dropMag = CloneThisNode(thisWeapon->magazineNode);
 					NiNode* magRoot = object->GetObjectRootNode()->GetAsNiNode();
 					if (dropMag && magRoot) {
-						//magRoot->m_localTransform.scale = 0;
 						dropMag->flags &= 0xfffffffffffffffe;
 						dropMag->m_localTransform.scale = thisWeapon->originalMagScale;
 						magRoot->AttachChild(dropMag, true);
-						//magRoot->m_spCollisionObject = nullptr;
 					}
-					//Offsets::DeleteRef(object);
 					std::thread t6(deleteSpentClip, object);
 					t6.detach();
 					return;
@@ -576,12 +584,41 @@ namespace Reload {
 	void playDryFire() {
 		if (thisWeapon) {
 			int currentAmmoCount = thisWeapon->magCapacity * Offsets::Actor_GetAmmoClipPercentage(*g_player, thisWeapon->equipIndex);
+			if (currentAmmoCount == 1 && thisWeapon->ReloadType == kReloadType_Bolt) {
+				dryPositionBolt();
+				return;
+			}
 			if (currentAmmoCount == 0) {
 				Offsets::PlaySoundAtActor(dryFire, *g_player);
 				vrHook->StartHaptics(2, 0.025, 0.3);
 				return;
 			}
 			return;
+		}
+	}
+
+	void dryPositionBolt() {
+		if (thisWeapon->weaponNode && thisWeapon->clonedBoltNode && thisWeapon->boltNode) {
+			//if (thisWeapon->clonedBoltNode->m_localTransform.pos.y > thisWeapon->originalBoltPosition) {
+			NiNode* testNode = getChildNode("ClonedBolt", thisWeapon->weaponNode);
+			if (testNode == nullptr) {
+				thisWeapon->weaponNode->AttachChild(thisWeapon->clonedBoltNode, true);
+				thisWeapon->boltNode->flags |= 0x1; // hide the original bolt node until weapon reload it completed
+				thisWeapon->boltNode->m_localTransform.scale = 0.0;
+			}
+			if (thisWeapon->clonedBoltNode->m_localTransform.pos.y > thisWeapon->reloadSlidePos) {
+				std::string mes = "Slide Diff: " + std::to_string(thisWeapon->boltPosDifference) + " ReloadPos: " + std::to_string(thisWeapon->reloadSlidePos) + " MaxPos: " + std::to_string(thisWeapon->maxBoltPosition);
+				_MESSAGE(mes.c_str());
+				thisWeapon->clonedBoltNode->m_localTransform.pos.y = thisWeapon->clonedBoltNode->m_localTransform.pos.y - 0.02;
+				if (thisWeapon->clonedBoltNode->m_localTransform.pos.y > thisWeapon->reloadSlidePos) {
+					std::thread t11(dryPositionBolt);
+					t11.detach();
+					return;
+				}
+				else {
+					Offsets::PlaySoundAtActor(boltOpen, *g_player);
+				}
+			}
 		}
 	}
 
@@ -649,12 +686,20 @@ namespace Reload {
 			thisWeapon->magazineNode->m_localTransform.scale = thisWeapon->originalMagScale;
 			if (thisWeapon->ReloadType == kReloadType_Bolt) {
 				Offsets::PlaySoundAtActor(magIn, *g_player);
+				if (skipRacking) {
+					completeSlideReload();
+					removingPouch = true;
+					destroyAmmoPouch();
+				}
 			}
 			else if (thisWeapon->ReloadType == kReloadType_BreakAction) {
 				Offsets::PlaySoundAtActor(breakActionMagIn, *g_player);
 			}
 			else if (thisWeapon->ReloadType == KReloadType_Cylinder) {
 				Offsets::PlaySoundAtActor(cylinderMagIn, *g_player);
+			}
+			else if (thisWeapon->ReloadType == kReloadType_Laser) {
+				Offsets::PlaySoundAtActor(laserMagIn, *g_player);
 			}
 			vrHook->StartHaptics(2, 0.05, 1.0);
 			if (thisWeapon->ReloadType == kReloadType_BreakAction && thisWeapon->clipCount < thisWeapon->magCapacity && thisWeapon->reserveAmmo != 0 && thisWeapon->clonedBreakActionNode && thisWeapon->breakActionShellNode[thisWeapon->clipCount]) {
@@ -697,13 +742,10 @@ namespace Reload {
 
 	bool gunRequiresMag() {
 		if (thisWeapon->magazineNode) {
-			//if (thisWeapon->magazineNode->m_localTransform.scale == 0.0) {
 			if (thisWeapon->magazineNode->flags & 0x1) {
-				_MESSAGE("Weapon needs Mag");
 				return true;
 			}
 			else {
-				_MESSAGE("Weapon has Mag");
 				return false;
 			}
 		}
@@ -726,6 +768,9 @@ namespace Reload {
 	}
 
 	bool requiresRacking() {
+		if (skipRacking) {
+			return false;
+		}
 		if (thisWeapon->magazineNode && thisWeapon->weaponNode) {
 			NiNode* node = getChildNode("ClonedBolt", thisWeapon->weaponNode);
 			if (node && thisWeapon->magazineNode->m_localTransform.scale != 0) {
@@ -745,7 +790,6 @@ namespace Reload {
 		if (hand && thisWeapon) {
 			NiNode* grip = nullptr;
 			if (thisWeapon->weaponNode) {
-				//grip = getChildNode("p-grip", thisWeapon->weaponNode);
 				grip = getChildNode("Camera", (*g_player)->unkF0->rootNode);
 			}
 			if (grip) {
@@ -778,7 +822,6 @@ namespace Reload {
 		if (thisWeapon->clonedBoltNode && hand) {
 			NiNode* grip = nullptr;
 			if (thisWeapon->weaponNode) {
-				//grip = getChildNode("p-grip", thisWeapon->weaponNode);
 				grip = getChildNode("RArm_ForeArm2", (*g_player)->unkF0->rootNode);
 			}
 			float distance;
@@ -800,7 +843,8 @@ namespace Reload {
 					}
 				}
 				else if (distanceToGrip > lastDistanceToGrip) {
-					if (curPos < thisWeapon->originalBoltPosition) {
+					//if (curPos < thisWeapon->originalBoltPosition) {
+					if (curPos < thisWeapon->reloadSlidePos) {
 						thisWeapon->clonedBoltNode->m_localTransform.pos.y = thisWeapon->clonedBoltNode->m_localTransform.pos.y + distance;
 					}
 				}
@@ -821,7 +865,7 @@ namespace Reload {
 					return;
 				}
 				else {
-					thisWeapon->weaponNode->RemoveChild(thisWeapon->clonedBoltNode);
+					/*thisWeapon->weaponNode->RemoveChild(thisWeapon->clonedBoltNode);
 					thisWeapon->boltNode->flags &= 0xfffffffffffffffe;
 					thisWeapon->boltNode->m_localTransform.scale = thisWeapon->originalBoltScale;
 					thisWeapon->clonedBoltNode = nullptr;
@@ -840,10 +884,37 @@ namespace Reload {
 					_isWithinMagInsertZone = false;
 					_isGrabbingBolt = false;
 					_maxSlideReached = false;
-					isReloading = false;
+					isReloading = false;*/
+					completeSlideReload();
 					vrHook->StartHaptics(2, 0.05, 1.0);
 				}
 			}
+		}
+	}
+
+	void completeSlideReload() {
+		if (thisWeapon->weaponNode && thisWeapon->clonedBoltNode && thisWeapon->boltNode) {
+			thisWeapon->weaponNode->RemoveChild(thisWeapon->clonedBoltNode);
+			thisWeapon->boltNode->flags &= 0xfffffffffffffffe;
+			thisWeapon->boltNode->m_localTransform.scale = thisWeapon->originalBoltScale;
+			thisWeapon->clonedBoltNode = nullptr;
+			thisWeapon->clonedBoltNode = CloneThisNode(thisWeapon->boltNode);
+			thisWeapon->clonedBoltNode->m_name = "ClonedBolt";
+			int reserveAmmo = thisWeapon->GetReserveAmmo();
+			if (reserveAmmo < thisWeapon->magCapacity) {
+				Offsets::Actor_SetCurrentAmmoCount(*g_player, thisWeapon->equipIndex, reserveAmmo);
+			}
+			else {
+				Offsets::Actor_SetCurrentAmmoCount(*g_player, thisWeapon->equipIndex, thisWeapon->magCapacity);
+			}
+			_isReloadPressed = false;
+			_isTriggerPressed = false;
+			_isGrabAmmoPressed = false;
+			_isWithinMagInsertZone = false;
+			_isGrabbingBolt = false;
+			_maxSlideReached = false;
+			isReloading = false;
+			//vrHook->StartHaptics(2, 0.05, 1.0);
 		}
 	}
 
@@ -851,7 +922,8 @@ namespace Reload {
 		if (isReloading) {
 			if (thisWeapon->weaponNode && thisWeapon->boltNode && thisWeapon->clonedBoltNode) {
 				float curPos = thisWeapon->clonedBoltNode->m_localTransform.pos.y;
-				if (thisWeapon->clonedBoltNode->m_localTransform.pos.y < thisWeapon->originalBoltPosition) {
+				//if (thisWeapon->clonedBoltNode->m_localTransform.pos.y < thisWeapon->originalBoltPosition) {
+				if (thisWeapon->clonedBoltNode->m_localTransform.pos.y < thisWeapon->reloadSlidePos) {
 					thisWeapon->clonedBoltNode->m_localTransform.pos.y = thisWeapon->clonedBoltNode->m_localTransform.pos.y + 0.02;
 					std::thread t7(retoreBolt2);
 					t7.detach();
@@ -873,7 +945,6 @@ namespace Reload {
 		Matrix44 rot;
 		Matrix44 rot2;
 		if (thisWeapon->clonedBreakActionNode) {
-			//_MESSAGE("ROTATING BREAK ACTION");
 			_minBreakActionReached = false;
 			rot.makeTransformMatrix(thisWeapon->clonedBreakActionNode->m_localTransform.rot, NiPoint3(0, 0, 0));
 			rot2.makeTransformMatrix(thisWeapon->savedWeaponData.rot, NiPoint3(0, 0, 0));
@@ -929,14 +1000,6 @@ namespace Reload {
 		vrHook->StartHaptics(2, 0.05, 0.25);
 		vrHook->StartHaptics(1, 0.05, 0.25);
 		boltsnap = true;
-	}
-
-	void restoreBreakAction() {
-
-	}
-
-	void restoreBreakAction2() {
-
 	}
 
 	void rotateWithBreakAction() {
@@ -1022,7 +1085,6 @@ namespace Reload {
 			if (rot2y > 0) {
 				rot2y = rot2y * -1;
 			}
-			//_MESSAGE(std::to_string(roty).c_str());
 			if (roty > rot2y && !_maxCylinderReached) {
 				rot.setEulerAngles(0, (degrees_to_rads(0.10)), 0);
 				thisWeapon->clonedCylinderNode->m_localTransform.rot = rot.multiply43Right(thisWeapon->clonedCylinderNode->m_localTransform.rot);
@@ -1070,7 +1132,6 @@ namespace Reload {
 		if (thisWeapon->clonedCylinderNode) {
 			rot.makeTransformMatrix(thisWeapon->clonedCylinderNode->m_localTransform.rot, NiPoint3(0, 0, 0));
 			maxRot.makeTransformMatrix(thisWeapon->savedWeaponData.rot, NiPoint3(0, 0, 0));
-			//minRot.makeTransformMatrix(thisWeapon->cylinderNode->m_localTransform.rot, NiPoint3(0, 0, 0));
 			float rotx;
 			float roty;
 			float rotz;
@@ -1080,7 +1141,6 @@ namespace Reload {
 			float rotMinX;
 			float rotMinY;
 			float rotMinZ;
-			//float rotyb;
 			rot.getEulerAngles(&rotx, &roty, &rotz);
 			maxRot.getEulerAngles(&rotMaxX, &rotMaxY, &rotMaxZ);
 			if (rotMaxY > 0) {
@@ -1089,7 +1149,6 @@ namespace Reload {
 			minCylinderRot.getEulerAngles(&rotMinX, &rotMinY, &rotMinZ);
 			if (distanceToGrip > lastDistanceToGrip) {
 				if (roty > rotMaxY) {
-					//distance = distance * -1;
 					rot.setEulerAngles(0, (degrees_to_rads(distance)), 0);
 					thisWeapon->clonedCylinderNode->m_localTransform.rot = rot.multiply43Right(thisWeapon->clonedCylinderNode->m_localTransform.rot);
 					rot.multiply43Right(thisWeapon->clonedCylinderNode->m_localTransform.rot);
@@ -1126,7 +1185,6 @@ namespace Reload {
 							}
 						}
 					}
-					//thisWeapon->getWeaponNodes();
 					Offsets::PlaySoundAtActor(cylinderBoltClose, *g_player);
 					removingPouch = true;
 					destroyAmmoPouch();
@@ -1171,10 +1229,6 @@ namespace Reload {
 			float rot2z;
 			rot.getEulerAngles(&rotx, &roty, &rotz);
 			rot2.getEulerAngles(&rot2x, &rot2y, &rot2z);
-			//if (rot2y > 0) {
-				//rot2y = rot2y * -1;
-			//}
-			//_MESSAGE(std::to_string(roty).c_str());
 			std::string mes = "current: " + std::to_string(roty) + " Target: " + std::to_string(rot2y);
 			if (roty > rot2y && !_maxCylinderReached) {
 				rot.setEulerAngles(0, (degrees_to_rads(0.10)), 0);
@@ -1190,7 +1244,7 @@ namespace Reload {
 					thisWeapon->magazineNode->m_localTransform.scale = 0.0;
 					thisWeapon->magazineNode->flags |= 0x1;
 					thisWeapon->weaponNode->AttachChild(thisWeapon->magazineNode, true);
-					Offsets::PlaySoundAtActor(magOut, *g_player);
+					Offsets::PlaySoundAtActor(laserBoltOpen, *g_player);
 					NEW_REFR_DATA* refrData = new NEW_REFR_DATA();
 					refrData->location = thisWeapon->magazineNode->m_worldTransform.pos;
 					refrData->direction = (*g_player)->rot;
@@ -1302,7 +1356,7 @@ namespace Reload {
 					_minCylinderReached = true;
 					vrHook->StartHaptics(2, 0.05, 0.5);
 					Offsets::Actor_SetCurrentAmmoCount(*g_player, thisWeapon->equipIndex, thisWeapon->magCapacity);
-					Offsets::PlaySoundAtActor(cylinderBoltClose, *g_player);
+					Offsets::PlaySoundAtActor(laserBoltClose, *g_player);
 					removingPouch = true;
 					destroyAmmoPouch();
 					isReloading = false;
@@ -1369,7 +1423,6 @@ namespace Reload {
 	void detectAmmoSphere() {
 		if (!gunRequiresMag() || isAmmoInHand()) {
 			std::string mes = "Requires Mag: " + std::to_string(gunRequiresMag()) + " Ammo in Hand: " + std::to_string(isAmmoInHand());
-			//_MESSAGE(mes.c_str());
 			return;
 		}
 		if ((*g_player)->firstPersonSkeleton == nullptr) {
@@ -1399,16 +1452,11 @@ namespace Reload {
 						curDevice = device;
 						vrHook->StartHaptics(1, 0.05, 0.3);
 						isAmmoIntersected = true;
-						//gCurHolster = handle;
 						BSFixedString NameofMesh = element.second->MeshName;
 						NiNode* holster = element.second->debugSphere;
 						if (!holster) {
 							return;
 						}
-						//holster->flags &= 0xfffffffffffffffe;
-						//float f = 12.0;
-						//holster->m_localTransform.scale = f;
-						
 					}
 				}
 				else if (dist >= ((double)element.second->radius + 0.1)) {
@@ -1422,8 +1470,6 @@ namespace Reload {
 						UInt32 handle = element.first;
 						UInt32 device = 1;
 						curDevice = 0;
-						//holster->flags |= 0x1;
-						//holster->m_localTransform.scale = 0;
 						isAmmoIntersected = false;
 					}
 				}
@@ -1437,13 +1483,11 @@ namespace Reload {
 			NiNode* hol;
 			BSFixedString NameofMesh = AmmoRegisteredObjects[0]->MeshName;
 			NiNode* retNode = loadNifFromFile("Data/Meshes/VRR/1x1Sphere.nif");
-			NiCloneProcess proc;
-			proc.unk18 = Offsets::cloneAddr1;
-			proc.unk48 = Offsets::cloneAddr2;
-			hol = Offsets::cloneNode(retNode, &proc);
-			if (!hol) {
-				_MESSAGE("NIF NOT LOADED");
-			}
+			//NiCloneProcess proc;
+			//proc.unk18 = Offsets::cloneAddr1;
+			//proc.unk48 = Offsets::cloneAddr2;
+			//hol = Offsets::cloneNode(retNode, &proc);
+			hol = CloneThisNode(retNode);
 			if (hol) {
 				hol->m_name = BSFixedString(NameofMesh);
 				if (hol->m_children.m_emptyRunStart > 0) {
@@ -1459,23 +1503,24 @@ namespace Reload {
 					}
 				}
 				NiNode* Weap2 = getChildNode(NameofMesh, (*g_player)->unkF0->rootNode); //Check for accidental spawned clones & delete
-				if (Weap2) {
+				if (Weap2 && bone) {
 					Weap2->flags |= 0x1;
 					Weap2->m_localTransform.scale = 0;
-					Weap2->m_parent->RemoveChild(Weap2);
+					bone->RemoveChild(Weap2);
 				}
-				bone->AttachChild((NiAVObject*)hol, true);
-				hol->m_localTransform.scale = (AmmoRegisteredObjects[0]->radius * 2);
-				AmmoRegisteredObjects[0]->debugSphere = hol;
-				hol->m_localTransform.pos.x = (hol->m_localTransform.pos.x + AmmoRegisteredObjects[0]->offset.x);
-				hol->m_localTransform.pos.y = (hol->m_localTransform.pos.y + AmmoRegisteredObjects[0]->offset.y);
-				hol->m_localTransform.pos.z = (hol->m_localTransform.pos.z + AmmoRegisteredObjects[0]->offset.z);
-				hol->flags |= 0x1;
-				hol->m_localTransform.scale = 0;
-				_MESSAGE("SPHERE ATTACHED");
+				if (bone && hol) {
+					bone->AttachChild((NiAVObject*)hol, true);
+					hol->m_localTransform.scale = (AmmoRegisteredObjects[0]->radius * 2);
+					AmmoRegisteredObjects[0]->debugSphere = hol;
+					hol->m_localTransform.pos.x = (hol->m_localTransform.pos.x + AmmoRegisteredObjects[0]->offset.x);
+					hol->m_localTransform.pos.y = (hol->m_localTransform.pos.y + AmmoRegisteredObjects[0]->offset.y);
+					hol->m_localTransform.pos.z = (hol->m_localTransform.pos.z + AmmoRegisteredObjects[0]->offset.z);
+					hol->flags |= 0x1;
+					hol->m_localTransform.scale = 0;
+					_MESSAGE("SPHERE ATTACHED");
+				}
 			}
 		}
-
 	}
 
 	void registerAmmoSphere(float radius, BSFixedString bone, NiPoint3 pos, BSFixedString MeshPath, BSFixedString MeshName) {

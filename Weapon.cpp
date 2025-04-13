@@ -143,6 +143,8 @@ namespace Reload {
 						originalBoltScale = _boltNode->m_localTransform.scale;
 					}
 				}
+				boltPosDifference = std::abs(originalBoltPosition - maxBoltPosition);
+				reloadSlidePos = originalBoltPosition - (boltPosDifference * 0.70);
 			}
 			if (ReloadType == kReloadType_BreakAction) {
 				NiNode* _BreakActionNode = getChildNode("WeaponMagazine", wpnNode);

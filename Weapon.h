@@ -1,6 +1,7 @@
 #pragma once
 #include "Reload.h"
 
+
 namespace Reload {
 
 	enum WeaponAmmoType
@@ -62,6 +63,8 @@ namespace Reload {
 		float originalBoltScale = 1.0;
 		float originalBoltPosition; // Current Weapons original bolt position (if it has one) so we can restore it on letting the bolt go
 		float maxBoltPosition; // the maximum value we want to move the bolt before registering its reload as completed
+		float boltPosDifference; 
+		float reloadSlidePos; 
 		int magCapacity; // the maximum capacity of the current weapons magazine
 		int clipCount; // the current clips count
 		int reserveAmmo;
