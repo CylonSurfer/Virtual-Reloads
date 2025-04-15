@@ -99,6 +99,9 @@ namespace Reload {
 	void gripLaserLatch();
 	void detectLaserLatch();
 	void rotateWithLaserLatch();
+	void detectLever();
+	void gripLever();
+	void rotateWithLever();
 	void showAmmoPouch();
 	void scaleAmmoPouch();
 	void destroyAmmoPouch();

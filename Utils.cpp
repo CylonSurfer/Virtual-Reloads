@@ -188,6 +188,38 @@ namespace Reload {
 		return boneNode;
 	}
 
+	NiAVObject* FindMesh(NiNode* node, BSFixedString nameLike) {
+		if (node) {
+			node->m_name.c_str();
+			node->m_children.m_emptyRunStart;
+			if (node->m_children.m_emptyRunStart != 0) {
+				for (auto i = 0; i < node->m_children.m_emptyRunStart; ++i) {
+					auto nextNode = node->m_children.m_data[i];
+					if (nextNode) {
+						BSTriShape* NodeTri = nextNode->GetAsBSTriShape();
+						if (NodeTri) {
+							BSFixedString TriName = NodeTri->m_name;
+							if (matchSubString(TriName.c_str(), nameLike)) {
+								return nextNode;
+							}
+						}
+						else {
+							BSSubIndexTriShape* NodeSITri = nextNode->GetAsBSSubIndexTriShape();
+							if (NodeSITri) {
+								BSFixedString TriName = NodeSITri->m_name;
+								if (matchSubString(TriName.c_str(), nameLike)) {
+									return nextNode;
+								}
+							}
+						}
+					}
+				}
+			}
+			return nullptr;
+		}
+		return nullptr;
+	}
+
 	NiNode* FindNode1stp(BSFixedString nodename) {
 		NiNode* boneNode = (NiNode*)getChildNode(nodename, (*g_player)->firstPersonSkeleton);
 		if (!boneNode) {

@@ -16,6 +16,7 @@ namespace Reload {
 	NiNode* getChildNode(const char* nodeName, NiNode* nde);
 	NiNode* get1stChildNode(const char* nodeName, NiNode* nde);
 	NiNode* FindNode(BSFixedString nodename);
+	NiAVObject* FindMesh(NiNode* node, BSFixedString nameLike);
 	NiNode* FindNode1stp(BSFixedString nodename);
 	bool matchSubString(const char* w1, const char* w2);
 	void SetINIFloat(BSFixedString name, float value);

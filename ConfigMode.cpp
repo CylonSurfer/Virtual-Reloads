@@ -4,8 +4,8 @@ namespace Reload {
 
 	char* mUI_Nodes[3] = { "Data/Meshes/VRR/UI-NODE01_ReloadType.nif", "Data/Meshes/VRR/UI-NODE02_AmmoType.nif", "Data/Meshes/VRR/UI-NODE03_Save.nif" };
 	char* mUI_Tiles[3] = { "Data/Meshes/VRR/UI-TILE01_ReloadType.nif", "Data/Meshes/VRR/UI-TILE02_AmmoType.nif", "Data/Meshes/VRR/UI-TILE03_Save.nif" };
-	char* mUI_Info_Nodes[6] = { "Data/Meshes/VRR/UI-INFO_MODE00.nif", "Data/Meshes/VRR/UI-INFO_MODE01.nif", "Data/Meshes/VRR/UI-INFO_MODE02.nif", "Data/Meshes/VRR/UI-INFO_MODE03.nif", "Data/Meshes/VRR/UI-INFO_MODE04.nif", "Data/Meshes/VRR/UI-INFO_MODE05.nif" };
-	char* nUI_Info_Nodes[6] = { "UI-INFO_MODE00", "UI-INFO_MODE01", "UI-INFO_MODE02", "UI-INFO_MODE03", "UI-INFO_MODE04", "UI-INFO_MODE05" };
+	char* mUI_Info_Nodes[7] = { "Data/Meshes/VRR/UI-INFO_MODE00.nif", "Data/Meshes/VRR/UI-INFO_MODE01.nif", "Data/Meshes/VRR/UI-INFO_MODE02.nif", "Data/Meshes/VRR/UI-INFO_MODE03.nif", "Data/Meshes/VRR/UI-INFO_MODE04.nif", "Data/Meshes/VRR/UI-INFO_MODE05.nif", "Data/Meshes/VRR/UI-INFO_MODE06.nif" };
+	char* nUI_Info_Nodes[7] = { "UI-INFO_MODE00", "UI-INFO_MODE01", "UI-INFO_MODE02", "UI-INFO_MODE03", "UI-INFO_MODE04", "UI-INFO_MODE05", "UI-INFO_MODE06" };
 	char* nUI_Nodes[3] = { "UI-NODE01_ReloadType", "UI-NODE02_AmmoType", "UI-NODE03_Save" };
 	char* nUI_Tiles[3] = { "UI-TILE01_ReloadType", "UI-TILE02_AmmoType", "UI-TILE03_Save" };
 	void (*funcs[3])() = { UITile01Function, UITile02Function, UITile03Function };
@@ -112,7 +112,7 @@ namespace Reload {
 				}
 			}
 		}
-		for (int i = 0; i < 6; i++) {
+		for (int i = 0; i < 7; i++) {
 			int rlm = static_cast<int>(cReloadType);
 			if (rlm != i) {
 				if (niUI_ModeNodes[i] != nullptr) {
@@ -193,7 +193,8 @@ namespace Reload {
 				cAmmoType = kConfAmmoType_FusionCell;
 				NiNode* wpnExtra = getChildNode("WeaponExtra1", wpnNode);
 				if (wpnExtra) {
-					wpnExtra->m_name.c_str();
+					cLatchNode = FindMesh(wpnExtra, "LaserRifleLatch");
+					/*wpnExtra->m_name.c_str();
 					wpnExtra->m_children.m_emptyRunStart;
 					if (wpnExtra->m_children.m_emptyRunStart != 0) {
 						for (auto i = 0; i < wpnExtra->m_children.m_emptyRunStart; ++i) {
@@ -208,11 +209,31 @@ namespace Reload {
 								}
 							}
 						}
-					}
+					}*/
+
 				}
 				_cCustomTransform.pos.y = 5.0;
 				_cCustomTransform.pos.z = 5.0;
 				_cCustomTransform.scale = 0.0;
+			}
+			if (cReloadType == kConfReloadType_LeverAction) {
+				NiNode* wpnExtra = getChildNode("WeaponExtra3", wpnNode);
+				if (wpnExtra) {
+					NiAVObject* leverMesh = FindMesh(wpnExtra, "LeverActionGaurd");
+					if (!leverMesh) {
+						return; // this is where we'll look for third party weapon lever meshes to confirm type.
+					}
+					else {
+						removeNode =  CloneThisNode(wpnExtra);
+						restoreNode = wpnExtra;
+						if (removeNode) {
+							removeNode->m_name = "ClonedLeverActionNode";
+							restoreNode->m_localTransform.scale = 0.0;
+							restoreNode->flags |= 0x1;
+							wpnNode->AttachChild(removeNode, true);
+						}
+					}
+				}
 			}
 		}
 	}

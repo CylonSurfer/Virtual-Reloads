@@ -65,3 +65,13 @@ README.md
 .vs/VirtualReloads/v17/ipch/AutoPCH/8541e7c701b171a3/RELOAD.ipch
 .vs/VirtualReloads/v17/ipch/AutoPCH/b3ec86055e114471/RELOAD.ipch
 README.md
+VirtualReloads/x64/Debug/BSFlattenedBoneTree.obj
+VirtualReloads/x64/Debug/ConfigMode.obj
+VirtualReloads/x64/Debug/Matrix.obj
+VirtualReloads/x64/Debug/MiscStructs.obj
+VirtualReloads/x64/Debug/Offsets.obj
+VirtualReloads/x64/Debug/Utils.obj
+VirtualReloads/x64/Debug/VRHook.obj
+VirtualReloads/x64/Debug/Weapon.obj
+VirtualReloads/x64/Debug/weaponOffset.obj
+.vs/VirtualReloads/FileContentIndex/f7f3545b-b521-494b-bd01-e55b04a8cfa3.vsidx

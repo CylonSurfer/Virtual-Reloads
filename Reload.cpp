@@ -42,6 +42,7 @@ namespace Reload {
 	bool removingPouch = false;
 	bool addingPouch = false;
 	bool boltsnap = false;
+	bool _isLevered = false;
 	float rAxisOffsetY;
 	float distanceToGrip;
 	float lastDistanceToGrip;
@@ -105,6 +106,7 @@ namespace Reload {
 			if (_isNewWeapon) {
 				_isNewWeapon = false;
 				setupWeapon();
+				_isLevered = true;
 				return;
 			}
 			VRButtonsMain();
@@ -139,6 +141,12 @@ namespace Reload {
 				}
 				if (requiresRacking() && _isGrabbingBolt) {
 					moveBolt();
+				}
+				if (thisWeapon->ReloadType == kReloadType_LeverAction && !_isGrabbingBolt && !_isLevered) {
+					detectLever();
+				}
+				if (thisWeapon->ReloadType == kReloadType_LeverAction && _isGrabbingBolt && !_isLevered) {
+					rotateWithLever();
 				}
 			}
 			if (thisConfigMode != nullptr) {
@@ -260,13 +268,23 @@ namespace Reload {
 			if (triggerButtonPressed && !_isTriggerPressed) {
 				_isTriggerPressed = true;
 				if (thisWeapon != nullptr) {
+					if (thisWeapon->ReloadType == kReloadType_LeverAction) {
+						thisWeapon->clipCount = thisWeapon->magCapacity * Offsets::Actor_GetAmmoClipPercentage(*g_player, thisWeapon->equipIndex);
+						_MESSAGE(std::to_string(thisWeapon->clipCount).c_str());
+						if (thisWeapon->clipCount > 0) {
+							Offsets::Actor_SetCurrentAmmoCount(*g_player, thisWeapon->equipIndex, 1);
+							thisWeapon->clipCount--;
+							_maxCylinderReached = false;
+							_isLevered = false;
+						}
+					}
 					playDryFire();
 				}
 			}
 			else if (!triggerButtonPressed) {
 				_isTriggerPressed = false;
 			}
-			if (thisWeapon && isReloading) {
+			if (thisWeapon && (isReloading || !_isLevered)) {
 				//Secondary hand grip button:
 				if (grabAmmoButtonPressed && !_isGrabAmmoPressed && isAmmoIntersected && !isAmmoInHand()) {
 					_isGrabAmmoPressed = true;
@@ -289,6 +307,11 @@ namespace Reload {
 					_isGrabbingBolt = true;
 					_maxCylinderReached = false;
 					gripLaserLatch();
+				}
+				else if (grabAmmoButtonPressed && thisWeapon->ReloadType == kReloadType_LeverAction && _isInBreakActionZone && !_isGrabAmmoPressed && !_isGrabbingBolt) {
+					_isGrabbingBolt = true;
+					//_maxCylinderReached = false;
+					gripLever();
 				}
 				else if (!grabAmmoButtonPressed) {
 					_isGrabAmmoPressed = false;
@@ -352,6 +375,19 @@ namespace Reload {
 							thisConfigMode->_cCustomTransform.rot = thisConfigMode->cLatchNode->m_localTransform.rot;
 							thisConfigMode->_cCustomTransform.pos.y = 5.0;
 							thisConfigMode->_cCustomTransform.pos.z = 5.0;
+						}
+					}
+					if (thisConfigMode->cReloadType == kConfReloadType_LeverAction && thisConfigMode->removeNode != nullptr) {
+						if (doinantHandStick.y > 0.50 || doinantHandStick.y < -0.50) {
+							Matrix44 rot;
+							rAxisOffsetY = doinantHandStick.y / 10;
+							rot.setEulerAngles((degrees_to_rads(rAxisOffsetY)), 0, 0);
+							thisConfigMode->removeNode->m_localTransform.rot = rot.multiply43Left(thisConfigMode->removeNode->m_localTransform.rot);
+							rot.multiply43Left(thisConfigMode->removeNode->m_localTransform.rot);
+							thisConfigMode->_cCustomTransform.rot = thisConfigMode->removeNode->m_localTransform.rot;
+							thisConfigMode->_cCustomTransform.pos.x = thisConfigMode->cOriginalBoltPosition;
+							thisConfigMode->_cCustomTransform.pos.y = 6.0;
+							thisConfigMode->_cCustomTransform.pos.z = 6.0;
 						}
 					}
 				}
@@ -535,7 +571,20 @@ namespace Reload {
 						rotateLaserLatch();
 					}
 				}
-
+				if (thisWeapon->ReloadType == kReloadType_LeverAction) {
+					int currentAmmoCount = thisWeapon->magCapacity * Offsets::Actor_GetAmmoClipPercentage(*g_player, thisWeapon->equipIndex);
+					if (currentAmmoCount == thisWeapon->magCapacity) {
+						return;
+					}
+					if (thisWeapon->magazineNode) {
+						thisWeapon->magazineNode->flags |= 0x1;
+						thisWeapon->magazineNode->m_localTransform.scale = 0.0;
+					}
+					if (_isLevered) {
+						thisWeapon->clipCount = currentAmmoCount;
+					}
+					showAmmoPouch();
+				}
 			}
 		}
 		else {
@@ -701,6 +750,9 @@ namespace Reload {
 			else if (thisWeapon->ReloadType == kReloadType_Laser) {
 				Offsets::PlaySoundAtActor(laserMagIn, *g_player);
 			}
+			else if (thisWeapon->ReloadType == kReloadType_LeverAction) {
+				Offsets::PlaySoundAtActor(cylinderMagIn, *g_player);
+			}
 			vrHook->StartHaptics(2, 0.05, 1.0);
 			if (thisWeapon->ReloadType == kReloadType_BreakAction && thisWeapon->clipCount < thisWeapon->magCapacity && thisWeapon->reserveAmmo != 0 && thisWeapon->clonedBreakActionNode && thisWeapon->breakActionShellNode[thisWeapon->clipCount]) {
 				thisWeapon->magazineNode = CloneThisNode(thisWeapon->breakActionShellNode[thisWeapon->chamberNum]);
@@ -717,6 +769,22 @@ namespace Reload {
 					thisWeapon->magazineNode->flags |= 0x1;
 					thisWeapon->clonedCylinderNode->AttachChild(thisWeapon->magazineNode, true);
 				}
+			}
+			else if (thisWeapon->ReloadType == kReloadType_LeverAction && thisWeapon->clipCount < thisWeapon->magCapacity && thisWeapon->reserveAmmo != 0) {
+				if (_isLevered) {
+					int count = thisWeapon->magCapacity * Offsets::Actor_GetAmmoClipPercentage(*g_player, thisWeapon->equipIndex) + 1;
+					Offsets::Actor_SetCurrentAmmoCount(*g_player, thisWeapon->equipIndex, count);
+					if (thisWeapon->magazineNode) {
+						thisWeapon->magazineNode->m_localTransform.scale = 0.0;
+						thisWeapon->magazineNode->flags |= 0x1;
+					}
+				}
+				else {
+					if (thisWeapon->magazineNode) {
+						thisWeapon->magazineNode->m_localTransform.scale = 0.0;
+						thisWeapon->magazineNode->flags |= 0x1;
+					}
+				}		
 			}
 			else {
 				removingPouch = true;
@@ -1367,6 +1435,186 @@ namespace Reload {
 		}
 	}
 
+	void detectLever() {
+		BSFlattenedBoneTree* rt = (BSFlattenedBoneTree*)(*g_player)->unkF0->rootNode->m_children.m_data[0]->GetAsNiNode();
+		NiPoint3 pHand;
+		NiPoint3 oHand;
+		float distance;
+		pHand = rt->transforms[boneTreeMap["RArm_Finger31"]].world.pos;
+		oHand = rt->transforms[boneTreeMap["LArm_Hand"]].world.pos;
+		distance = vec3_len(pHand - oHand);
+		if (distance < 15.0) {
+			if (!_isInBreakActionZone) {
+				vrHook->StartHaptics(1, 0.05, 0.3);
+			}
+			_isInBreakActionZone = true;
+		}
+		else {
+			_isInBreakActionZone = false;
+		}
+	}
+
+	void gripLever() {
+		BSFlattenedBoneTree* rt = (BSFlattenedBoneTree*)(*g_player)->unkF0->rootNode->m_children.m_data[0]->GetAsNiNode();
+		NiPoint3 pHand;
+		NiPoint3 oHand;
+		pHand = rt->transforms[boneTreeMap["Camera"]].world.pos;
+		oHand = rt->transforms[boneTreeMap["LArm_Hand"]].world.pos;
+		lastDistanceToGrip = vec3_len(pHand - oHand);
+		Offsets::PlaySoundAtActor(boltOpen, *g_player);
+		vrHook->StartHaptics(2, 0.05, 0.25);
+		vrHook->StartHaptics(1, 0.05, 0.25);
+		boltsnap = true;
+		if (thisWeapon->weaponNode) {
+			NiNode* cloneNode = getChildNode("ClonedLeverActionNode", thisWeapon->weaponNode);
+			if (thisWeapon->breakActionNode&& thisWeapon->clonedBreakActionNode && cloneNode == nullptr) {
+				thisWeapon->weaponNode->AttachChild(thisWeapon->clonedBreakActionNode, true);
+				thisWeapon->breakActionNode->m_localTransform.scale = 0.0;
+				thisWeapon->breakActionNode->flags |= 0x1;
+			}
+		}
+	}
+
+	void rotateWithLever() {
+		NiNode* grip = nullptr;
+		BSFlattenedBoneTree* rt = (BSFlattenedBoneTree*)(*g_player)->unkF0->rootNode->m_children.m_data[0]->GetAsNiNode();
+		NiPoint3 pHand;
+		NiPoint3 oHand;
+		pHand = rt->transforms[boneTreeMap["Camera"]].world.pos;
+		oHand = rt->transforms[boneTreeMap["LArm_Hand"]].world.pos;
+		//if (thisWeapon->weaponNode) {
+			//grip = getChildNode("camera", (*g_player)->unkF0->rootNode);
+		//}
+		float distanceToGrip;
+		float distance;
+		distanceToGrip = vec3_len(pHand - oHand);
+		distance = std::abs(distanceToGrip -lastDistanceToGrip) * 10;
+		_MESSAGE(std::to_string(distance).c_str());
+		//if (grip) {
+			//distanceToGrip = vec3_len(hand->m_worldTransform.pos - grip->m_worldTransform.pos);
+		//}
+		Matrix44 rot;
+		Matrix44 maxRot;
+		Matrix44 minRot;
+		if (thisWeapon->clonedBreakActionNode) {
+			rot.makeTransformMatrix(thisWeapon->clonedBreakActionNode->m_localTransform.rot, NiPoint3(0, 0, 0));
+			maxRot.makeTransformMatrix(thisWeapon->savedWeaponData.rot, NiPoint3(0, 0, 0));
+			minRot.makeTransformMatrix(thisWeapon->breakActionNode->m_localTransform.rot, NiPoint3(0, 0, 0));
+			float rotx;
+			float roty;
+			float rotz;
+			float rotMaxX;
+			float rotMaxY;
+			float rotMaxZ;
+			float rotMinX;
+			float rotMinY;
+			float rotMinZ;
+			rot.getEulerAngles(&rotx, &roty, &rotz);
+			maxRot.getEulerAngles(&rotMaxX, &rotMaxY, &rotMaxZ);
+			minRot.getEulerAngles(&rotMinX, &rotMinY, &rotMinZ);
+			//std::string mes = "Min: " + std::to_string(rotMinX) + " Max: " + std::to_string(rotMaxX) + " Current: " + std::to_string(rotx);
+			//_MESSAGE(mes.c_str());
+			
+		    // Min: -0.000000 Max : 0.825116 Current : -0.000000
+			if (!_maxCylinderReached) {
+				if (distanceToGrip > lastDistanceToGrip) { //moving away
+					if (rotx < rotMaxX) {
+						distance = distance * -1;
+						rot.setEulerAngles((degrees_to_rads(distance)), 0, 0);
+						thisWeapon->clonedBreakActionNode->m_localTransform.rot = rot.multiply43Left(thisWeapon->clonedBreakActionNode->m_localTransform.rot);
+						rot.multiply43Left(thisWeapon->clonedBreakActionNode->m_localTransform.rot);
+					}
+					else {
+						_maxCylinderReached = true;
+						Offsets::PlaySoundAtActor(boltOpen, *g_player);
+						vrHook->StartHaptics(2, 0.05, 0.5);
+
+					}
+				}
+				if (distanceToGrip < lastDistanceToGrip) { // getting closer
+					if (rotx > rotMinX) {
+						rot.setEulerAngles((degrees_to_rads(distance)), 0, 0);
+						thisWeapon->clonedBreakActionNode->m_localTransform.rot = rot.multiply43Left(thisWeapon->clonedBreakActionNode->m_localTransform.rot);
+						rot.multiply43Left(thisWeapon->clonedBreakActionNode->m_localTransform.rot);
+					}
+				}
+			}
+			if (_maxCylinderReached) {
+				if (distanceToGrip > lastDistanceToGrip) { //moving away
+					if (rotx < rotMaxX) {
+						distance = distance * -1;
+						rot.setEulerAngles((degrees_to_rads(distance)), 0, 0);
+						thisWeapon->clonedBreakActionNode->m_localTransform.rot = rot.multiply43Left(thisWeapon->clonedBreakActionNode->m_localTransform.rot);
+						rot.multiply43Left(thisWeapon->clonedBreakActionNode->m_localTransform.rot);
+					}
+				}
+				if (distanceToGrip < lastDistanceToGrip) { // getting closer
+					if (rotx > rotMinX) {
+						rot.setEulerAngles((degrees_to_rads(distance)), 0, 0);
+						thisWeapon->clonedBreakActionNode->m_localTransform.rot = rot.multiply43Left(thisWeapon->clonedBreakActionNode->m_localTransform.rot);
+						rot.multiply43Left(thisWeapon->clonedBreakActionNode->m_localTransform.rot);
+					}
+					else {
+						Offsets::PlaySoundAtActor(boltOpen, *g_player);
+						if (thisWeapon->weaponNode) {
+							if (thisWeapon->breakActionNode && thisWeapon->clonedBreakActionNode) {
+								thisWeapon->weaponNode->AttachChild(thisWeapon->clonedBreakActionNode, true);
+								thisWeapon->clonedBreakActionNode->m_localTransform.scale = 0.0;
+								thisWeapon->clonedBreakActionNode->flags |= 0x1;
+								thisWeapon->breakActionNode->m_localTransform.scale = thisWeapon->originalBoltScale;
+								thisWeapon->breakActionNode->flags &= 0xfffffffffffffffe;
+								thisWeapon->weaponNode->RemoveChild(thisWeapon->clonedBreakActionNode);
+								thisWeapon->clonedBreakActionNode = CloneThisNode(thisWeapon->breakActionNode);
+								if (thisWeapon->clonedBreakActionNode) {
+									thisWeapon->clonedBreakActionNode->m_name = "ClonedBreakActionNode";
+								}
+								Offsets::Actor_SetCurrentAmmoCount(*g_player, thisWeapon->equipIndex, thisWeapon->clipCount);
+								_maxCylinderReached = false;
+								_isLevered = true;
+								if (isReloading) {
+									isReloading = false;
+								}
+							}
+						}
+					}
+				}
+			}
+
+			/*if (distanceToGrip < lastDistanceToGrip) {
+				if (rotx > rotMaxX) {
+					rot.setEulerAngles((degrees_to_rads(distance)), 0, 0);
+					thisWeapon->clonedBreakActionNode->m_localTransform.rot = rot.multiply43Left(thisWeapon->clonedBreakActionNode->m_localTransform.rot);
+					rot.multiply43Left(thisWeapon->clonedBreakActionNode->m_localTransform.rot);
+				}
+			}
+			if (distanceToGrip < lastDistanceToGrip) {
+				if (rotx < rotMinX) {
+					distance = distance * -1;
+					rot.setEulerAngles((degrees_to_rads(distance)), 0, 0);
+					thisWeapon->clonedBreakActionNode->m_localTransform.rot = rot.multiply43Left(thisWeapon->clonedBreakActionNode->m_localTransform.rot);
+					rot.multiply43Left(thisWeapon->clonedBreakActionNode->m_localTransform.rot);
+				}
+				else if (rotx >= rotMinX && !_minBreakActionReached) {
+					_minBreakActionReached = true;
+					vrHook->StartHaptics(2, 0.05, 0.5);
+					Offsets::Actor_SetCurrentAmmoCount(*g_player, thisWeapon->equipIndex, thisWeapon->clipCount);
+					thisWeapon->breakActionNode->m_localTransform.scale = thisWeapon->originalBoltScale;
+					thisWeapon->breakActionNode->flags &= 0xfffffffffffffffe;
+					thisWeapon->weaponNode->RemoveChild(thisWeapon->clonedBreakActionNode);
+					thisWeapon->clonedBreakActionNode = nullptr;
+					thisWeapon->getWeaponNodes();
+					Offsets::PlaySoundAtActor(breakActionBoltClose, *g_player);
+					removingPouch = true;
+					destroyAmmoPouch();
+					isReloading = false;
+
+				}
+			}*/
+			lastDistanceToGrip = distanceToGrip;
+		}
+
+	}
+
 	void showAmmoPouch() {
 		NiNode* retNode = loadNifFromFile("Data/Meshes/VRR/AmmoPouch.nif");
 		NiNode* ammoPouch = CloneThisNode(retNode);
@@ -1421,6 +1669,8 @@ namespace Reload {
 	}
 
 	void detectAmmoSphere() {
+		std::string mes = "Requires Mag: " + std::to_string(gunRequiresMag()) + " Ammo in Hand: " + std::to_string(isAmmoInHand());
+		_MESSAGE(mes.c_str());
 		if (!gunRequiresMag() || isAmmoInHand()) {
 			std::string mes = "Requires Mag: " + std::to_string(gunRequiresMag()) + " Ammo in Hand: " + std::to_string(isAmmoInHand());
 			return;
@@ -1561,7 +1811,7 @@ namespace Reload {
 	void UITile01Function() { // switch reload types
 		if (thisConfigMode != nullptr) {
 			int rlm = static_cast<int>(thisConfigMode->cReloadType);
-			if (rlm > 4) {
+			if (rlm > 5) {
 				rlm = 0;
 			}
 			else {

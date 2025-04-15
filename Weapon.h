@@ -21,7 +21,8 @@ namespace Reload {
 		kReloadType_BreakAction,
 		KReloadType_Cylinder,
 		KReloadType_DirectInsert,
-		kReloadType_Laser
+		kReloadType_Laser,
+		kReloadType_LeverAction
 	};
 
 	class CurrentWeapon {

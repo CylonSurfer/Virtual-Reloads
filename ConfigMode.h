@@ -20,7 +20,8 @@ namespace Reload {
 		kConfReloadType_BreakAction,
 		KConfReloadType_Cylinder,
 		KConfReloadType_DirectInsert,
-		kConfReloadType_Laser
+		kConfReloadType_Laser,
+		kConfReloadType_LeverAction
 	};
 
 	class ConfigMode
@@ -66,7 +67,7 @@ namespace Reload {
 		NiNode* niUIButton_Nodes[3] = {};
 		NiNode* niUI_Nodes[3] = {};
 		NiNode* niUI_Tiles[3] = {};
-		NiNode* niUI_ModeNodes[6] = {};
+		NiNode* niUI_ModeNodes[7] = {};
 		bool bUITilePressed[3] = {};
 
 	};

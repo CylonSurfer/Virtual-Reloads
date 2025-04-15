@@ -241,22 +241,52 @@ namespace Reload {
 				}
 				NiNode* wpnExtra = getChildNode("WeaponExtra1", wpnNode); 
 				if (wpnExtra) {
-					wpnExtra->m_name.c_str();
-					wpnExtra->m_children.m_emptyRunStart;
-					if (wpnExtra->m_children.m_emptyRunStart != 0) {
-						for (auto i = 0; i < wpnExtra->m_children.m_emptyRunStart; ++i) {
-							auto nextNode = wpnExtra->m_children.m_data[i];
-							if (nextNode) {
-								BSTriShape* NodeTri = nextNode->GetAsBSTriShape();
-								if (NodeTri) {
-									BSFixedString TriName = NodeTri->m_name;
-									if (matchSubString(TriName.c_str(), "LaserRifleLatch")) {
-										latchNode = nextNode;
-										if (latchNode) {
-											originalWeaponData = latchNode->m_localTransform;
-										}
-									}
+					latchNode = FindMesh(wpnExtra, "LaserRifleLatch");
+					if (latchNode) {
+						originalWeaponData = latchNode->m_localTransform;
+					}
+				}
+			}
+			if (ReloadType == kReloadType_LeverAction) {
+				NiNode* wpnExtra = getChildNode("WeaponExtra3", wpnNode);
+				if (wpnExtra) {
+					latchNode = FindMesh(wpnExtra, "LeverActionGaurd");
+					if (!latchNode) {
+						return; // this is where we'll look for third party weapon lever meshes to confirm type.
+					}
+					else {
+						clonedBreakActionNode = CloneThisNode(wpnExtra);
+						breakActionNode = wpnExtra;
+						if (clonedBreakActionNode) {
+							clonedBreakActionNode->m_name = "ClonedLeverActionNode";
+						}
+					}
+				}
+				NiNode* recNode = getChildNode("P-Receiver", wpnNode);
+				if (recNode) {
+					NiNode* magNode = getChildNode("P-Mag", wpnNode);
+					if (magNode) {
+						magazineNode = getChildNode("WeaponMagazineChild2", magNode);
+						if (magazineNode) {
+							_MESSAGE("FOUND LEVER MAG (3rd PARTY)");
+							clonedMagazineNode = CloneThisNode(magNode);
+							if (clonedMagazineNode) {
+								clonedMagazineNode->m_name = "ClonedMagazine";
+							}
+							originalMagScale = magNode->m_localTransform.scale;
+						}
+					}
+					else {
+						magNode = getChildNode("WeaponMagazine", wpnNode);
+						if (magNode) {
+							magazineNode = getChildNode("WeaponMagazineChild2", magNode);
+							if (magazineNode) {
+								_MESSAGE("FOUND LEVER MAG (BETH)");
+								clonedMagazineNode = CloneThisNode(magazineNode);
+								if (clonedMagazineNode) {
+									clonedMagazineNode->m_name = "ClonedMagazine";
 								}
+								originalMagScale = magNode->m_localTransform.scale;
 							}
 						}
 					}
